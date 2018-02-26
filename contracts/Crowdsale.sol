@@ -76,7 +76,7 @@ contract Crowdsale is Pausable {
         team = 0x6C88e6C76C1Eb3b130612D5686BE9c0A0C78925B; //TODO: Replace address with correct one
         maxCap = 1510000000e8; 
         minCap = 250000000e8;         
-        minInvestETH = 1 ether/10;  //TODO: replace with proper value        
+        minInvestETH = 1 ether;  //TODO: replace with proper value        
         dollarToEtherRatio = _dollarToEtherRatio;       
         numOfBlocksInMinute = 438;  //  TODO: updte this value before deploying. E.g. 4.38 block/per minute wold be entered as 438   
         releaseDate = 1111;         // TODO: update blocks number after which tokens can be released. 
