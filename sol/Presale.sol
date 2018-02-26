@@ -165,7 +165,7 @@ contract Presale is Pausable {
     function Presale(WhiteList _whiteList, uint _dollarToEtherRatio) public {               
         multisig = 0x6C88e6C76C1Eb3b130612D5686BE9c0A0C78925B; //TODO: Replace address with correct one
         team = 0x6C88e6C76C1Eb3b130612D5686BE9c0A0C78925B; //TODO: Replace address with correct one
-        maxCap = 1437500000e8;                 
+        maxCap = 1510000000e8;                 
         minInvestETH = 5 ether;             
         dollarToEtherRatio = _dollarToEtherRatio;       
         numOfBlocksInMinute = 438;  //  TODO: updte this value before deploying. E.g. 4.38 block/per minute wold be entered as 438   
