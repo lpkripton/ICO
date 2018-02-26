@@ -12,11 +12,11 @@
 ### How do I get set up?  
 
 * There are two main crowdfunding contracts responsible for this ICO.
-* **Presale.sol** and **Crwodsale.sol**
+* **Presale.sol** and **Crowdsale.sol**
 * Both contracts are similar in their logic, with the difference that they have different dates of releasing tokens.
-The reqirement to offer vesting options has been requested when contract was developed and to offer this option without redesigning
+The requirement to offer vesting options has been requested when contract was developed and to offer this option without redesigning
 the entire contract, one contract has been duplicated and modified accordingly. 
-Now each of thme has optoin to release their tokens at differnt dates. 
+Now each of them has an option to release their tokens at different dates. 
 
 * Use truffle, Ethereum Wallet or Remix to deploy contract on Ethereum network.
 * First deploy **Presale** contract and obtain its address. 
