@@ -124,8 +124,7 @@ contract Presale is Pausable {
     }
 
     Token public token;             // Token contract reference   
-    address public multisig;        // Multisig contract that will receive the ETH    
-    address public team;            // Address at which the team tokens will be sent        
+    address public multisig;        // Multisig contract that will receive the ETH              
     uint public ethReceived;        // Amount of ETH received            
     uint public totalTokensSent;    // Total number of tokens sent to contributors
     uint public startBlock;         // Presale start block
@@ -163,10 +162,9 @@ contract Presale is Pausable {
     // @param _dollarToEtherRatio {uint} how many dollars are in one eth.  $333.44/ETH would be passed as 33344
     // @param _whiteList {WhiteList} address of white list
     function Presale(WhiteList _whiteList, uint _dollarToEtherRatio) public {               
-        multisig = 0x6C88e6C76C1Eb3b130612D5686BE9c0A0C78925B; //TODO: Replace address with correct one
-        team = 0x6C88e6C76C1Eb3b130612D5686BE9c0A0C78925B; //TODO: Replace address with correct one
+        multisig = 0x6C88e6C76C1Eb3b130612D5686BE9c0A0C78925B; //TODO: Replace address with correct one       
         maxCap = 1510000000e8;                 
-        minInvestETH = 5 ether;             
+        minInvestETH = 5 ether/10;             
         dollarToEtherRatio = _dollarToEtherRatio;       
         numOfBlocksInMinute = 438;  //  TODO: updte this value before deploying. E.g. 4.38 block/per minute wold be entered as 438   
         releaseDate = 1111;         // TODO: update block number after which tokens can be released. 
@@ -199,7 +197,8 @@ contract Presale is Pausable {
     // @notice It will be called by owner to start the sale    
     function start(uint _block) external onlyOwner() {   
 
-        require(_block < (numOfBlocksInMinute * 60 * 24 * 60)/100);  // allow max 60 days for campaign
+        require(startBlock == 0);
+        require(_block < (numOfBlocksInMinute * 60 * 24 * 14)/100);  // allow max 14 days for campaign
         startBlock = block.number;
         endBlock = startBlock.add(_block); 
     }
@@ -208,7 +207,7 @@ contract Presale is Pausable {
     // this function will allow on adjusting duration of campaign closer to the end 
     function adjustDuration(uint _block) external onlyOwner() {
 
-        require(_block < (numOfBlocksInMinute * 60 * 24 * 80)/100); // allow for max of 80 days for campaign
+        require(_block < (numOfBlocksInMinute * 60 * 24 * 25)/100); // allow for max of 25 days for campaign
         require(_block > block.number.sub(startBlock)); // ensure that endBlock is not set in the past
         endBlock = startBlock.add(_block); 
     }   
@@ -218,6 +217,18 @@ contract Presale is Pausable {
     function adjustDollarToEtherRatio(uint _dollarToEtherRatio) external onlyOwner() {
         require(_dollarToEtherRatio > 0);
         dollarToEtherRatio = _dollarToEtherRatio;
+    }
+
+    // @notice allow on manual addition of contributors
+    // @param _backer {address} of contributor to be added
+    // @parm _amountTokens {uint} tokens to be added
+    function addManualContributor(address _backer, uint _amountTokens) external onlyOwner() {
+
+        Backer storage backer = backers[_backer];        
+        backer.tokensToSend = backer.tokensToSend.add(_amountTokens);
+        if (backer.tokensToSend == 0)      
+            backersIndex.push(_backer);
+        totalTokensSent = totalTokensSent.add(_amountTokens);
     }
     
     // @notice This function will finalize the sale.
@@ -353,30 +364,13 @@ contract Presale is Pausable {
     function determinePurchase() internal view  returns (uint) {
        
         require(msg.value >= minInvestETH);                         // ensure that min contributions amount is met  
-        uint tokenAmount = dollarToEtherRatio.mul(msg.value)/2e10;  // price of token is $0.02 and there are 8 decimals
+        uint tokenAmount = dollarToEtherRatio.mul(msg.value)/4e10;  // price of token is $0.04 and there are 8 decimals
         
         uint tokensToSend;                 
-        tokensToSend = calculateNoOfTokensToSend(tokenAmount);                                                          
+        tokensToSend = tokenAmount + (tokenAmount * 50) / 100;                    // add 50% bonus
         require(totalTokensSent.add(tokensToSend) < maxCap);        // Ensure that max cap hasn't been reached  
         return tokensToSend;
-    }
-
-    // @notice This function will return number of tokens based on time intervals in the campaign
-    // @param _tokenAmount {uint} amount of tokens to allocate for the contribution
-    function calculateNoOfTokensToSend(uint _tokenAmount) internal view  returns (uint) {
-              
-        if (block.number <= startBlock + (numOfBlocksInMinute * 60 * 24) / 100)             // less equal then/equal one day
-            return  _tokenAmount + (_tokenAmount * 20) / 100;
-        else if (block.number <= startBlock + (numOfBlocksInMinute * 60 * 24 * 2) / 100)    // less equal  two days
-            return  _tokenAmount + (_tokenAmount * 15) / 100; 
-        else if (block.number <= startBlock + (numOfBlocksInMinute * 60 * 24 * 3) / 100)    // less equal 3 days
-            return  _tokenAmount + (_tokenAmount * 10) / 100; 
-        else if (block.number <= startBlock + (numOfBlocksInMinute * 60 * 24 * 27) / 100)   // less eaual 27 days
-            return  _tokenAmount + (_tokenAmount * 5) / 100; 
-        else                                                                                // after 27 days
-            return  _tokenAmount;     
-    }
-
+    }    
 }
 
 

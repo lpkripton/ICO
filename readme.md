@@ -21,7 +21,7 @@ Now each of them has an option to release their tokens at different dates.
 * Use truffle, Ethereum Wallet or Remix to deploy contract on Ethereum network.
 * First deploy **Presale** contract and obtain its address. 
 * Conduct contribution to above contract.  
-* Then deploy **Crwodsale** contracct and obtain its address. 
+* Then deploy **Crwodsale** contract and obtain its address. 
 * Conduct contributions to above contract. 
 * Thirdly deploy **Token** contract and use address from previous two step and use them as its inputs. Obtain address of the token contract.  
 * Thirdly call function **updateTokenAddress()** of **Crowdsale** and **Presale** contract and provide address from Token contract as its input.

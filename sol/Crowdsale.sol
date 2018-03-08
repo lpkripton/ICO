@@ -125,14 +125,12 @@ contract Crowdsale is Pausable {
     }
 
     Token public token;             // Token contract reference   
-    address public multisig;        // Multisig contract that will receive the ETH    
-    address public team;            // Address at which the team tokens will be sent        
+    address public multisig;        // Multisig contract that will receive the ETH        
     uint public ethReceived;        // Amount of ETH received   
     uint public totalTokensSent;    // Total number of tokens sent to contributors
     uint public startBlock;         // Crowdsale start block
     uint public endBlock;           // Crowdsale end block
-    uint public maxCap;             // Maximum number of tokens to sell
-    uint public minCap;             // Minimum number of tokens to raise
+    uint public maxCap;             // Maximum number of tokens to sell   
     uint public minInvestETH;       // Minimum amount to contribute   
     bool public crowdsaleClosed;    // Is crowdsale still in progress
     bool public isRefunding;        // True if refunds needs to be enabled
@@ -170,10 +168,8 @@ contract Crowdsale is Pausable {
         require(_tokensSoldPrior > 0);       
         require(_dollarToEtherRatio > 0);
         require(_whiteList != address(0));          
-        multisig = 0x6C88e6C76C1Eb3b130612D5686BE9c0A0C78925B; //TODO: Replace address with correct one
-        team = 0x6C88e6C76C1Eb3b130612D5686BE9c0A0C78925B; //TODO: Replace address with correct one
-        maxCap = 1510000000e8; 
-        minCap = 250000000e8;         
+        multisig = 0x6C88e6C76C1Eb3b130612D5686BE9c0A0C78925B; //TODO: Replace address with correct one      
+        maxCap = 1510000000e8;       
         minInvestETH = 1 ether;  //TODO: replace with proper value        
         dollarToEtherRatio = _dollarToEtherRatio;       
         numOfBlocksInMinute = 438;  //  TODO: updte this value before deploying. E.g. 4.38 block/per minute wold be entered as 438   
@@ -190,9 +186,9 @@ contract Crowdsale is Pausable {
     }
 
     // @notice to populate website with status of the sale 
-    function returnWebsiteData() external view returns(uint, uint, uint, uint, uint, uint, uint, bool, bool, bool) {            
+    function returnWebsiteData() external view returns(uint, uint, uint, uint, uint, uint, bool, bool, bool) {            
     
-        return (startBlock, endBlock, backersIndex.length, ethReceived, maxCap, minCap, totalTokensSent, isRefunding, paused, crowdsaleClosed);
+        return (startBlock, endBlock, backersIndex.length, ethReceived, maxCap, totalTokensSent, isRefunding, paused, crowdsaleClosed);
     }   
 
     // @notice Specify address of token contract
@@ -207,7 +203,7 @@ contract Crowdsale is Pausable {
     // @notice It will be called by owner to start the sale    
     function start(uint _block) external onlyOwner() {   
 
-        require(_block < (numOfBlocksInMinute * 60 * 24 * 60)/100);  // allow max 60 days for campaign
+        require(_block < (numOfBlocksInMinute * 60 * 24 * 30)/100);  // allow max 30 days for campaign
         startBlock = block.number;
         endBlock = startBlock.add(_block); 
     }
@@ -216,7 +212,7 @@ contract Crowdsale is Pausable {
     // this function will allow on adjusting duration of campaign closer to the end 
     function adjustDuration(uint _block) external onlyOwner() {
 
-        require(_block < (numOfBlocksInMinute * 60 * 24 * 80)/100); // allow for max of 80 days for campaign
+        require(_block < (numOfBlocksInMinute * 60 * 24 * 40)/100); // allow for max of 40 days for campaign
         require(_block > block.number.sub(startBlock)); // ensure that endBlock is not set in the past
         endBlock = startBlock.add(_block); 
     }   
@@ -227,6 +223,18 @@ contract Crowdsale is Pausable {
         require(_dollarToEtherRatio > 0);
         dollarToEtherRatio = _dollarToEtherRatio;
     }
+
+    // @notice allow on manual addition of contributors
+    // @param _backer {address} of contributor to be added
+    // @parm _amountTokens {uint} tokens to be added
+    function addManualContributor(address _backer, uint _amountTokens) external onlyOwner() {
+
+        Backer storage backer = backers[_backer];        
+        backer.tokensToSend = backer.tokensToSend.add(_amountTokens);
+        if (backer.tokensToSend == 0)      
+            backersIndex.push(_backer);
+        totalTokensSent = totalTokensSent.add(_amountTokens);
+    }
     
     // @notice This function will finalize the sale.
     // It will only execute if predetermined sale time passed or all tokens are sold.
@@ -236,8 +244,7 @@ contract Crowdsale is Pausable {
         require(!crowdsaleClosed);        
         // purchasing precise number of tokens might be impractical, thus subtract 1000 
         // tokens so finalization is possible near the end 
-        require(block.number >= endBlock || totalTokensSent >= maxCap - 1000);                 
-        require(totalTokensSent >= minCap);  // ensure that minimum was reached
+        require(block.number >= endBlock || totalTokensSent >= maxCap - 1000);                        
         crowdsaleClosed = true;                                  
     }
 
@@ -308,25 +315,25 @@ contract Crowdsale is Pausable {
     function claimTokensForUser(address _backer) internal returns(bool) {       
 
         require(crowdsaleClosed);
-        require(releaseDate <= block.number);  // ensure that lockup period has passed
+        require(releaseDate <= block.number);   // ensure that lockup period has passed
        
-        require(token != address(0));  // address of the token is set after ICO
-                                        // claiming of tokens will be only possible once address of token
-                                        // is set through setToken
+        require(token != address(0));           // address of the token is set after ICO
+                                                // claiming of tokens will be only possible once address of token
+                                                // is set through setToken
            
         Backer storage backer = backers[_backer];
 
-        require(!backer.refunded); // if refunded, don't allow for another refund           
-        require(!backer.claimed); // if tokens claimed, don't allow refunding            
-        require(backer.tokensToSend != 0);   // only continue if there are any tokens to send           
+        require(!backer.refunded);              // if refunded, don't allow for another refund           
+        require(!backer.claimed);               // if tokens claimed, don't allow refunding            
+        require(backer.tokensToSend != 0);      // only continue if there are any tokens to send           
 
         claimCount++;
-        claimed[_backer] = backer.tokensToSend;  // save claimed tokens
+        claimed[_backer] = backer.tokensToSend; // save claimed tokens
         backer.claimed = true;
         totalClaimed += backer.tokensToSend;
         
         if (!token.transfer(_backer, backer.tokensToSend)) 
-            revert(); // send claimed tokens to contributor account
+            revert();                           // send claimed tokens to contributor account
 
         TokensClaimed(_backer, backer.tokensToSend);  
     }
@@ -361,7 +368,7 @@ contract Crowdsale is Pausable {
     function determinePurchase() internal view  returns (uint) {
        
         require(msg.value >= minInvestETH);                         // Ensure that min contributions amount is met  
-        uint tokenAmount = dollarToEtherRatio.mul(msg.value)/2e10;  // Price of token is $0.02 and there are 8 decimals for the token                                                                             
+        uint tokenAmount = dollarToEtherRatio.mul(msg.value)/4e10;  // Price of token is $0.04 and there are 8 decimals for the token                                                                             
         require(totalTokensSent.add(tokenAmount) < maxCap);         // Ensure that max cap hasn't been reached  
         return tokenAmount;
     }

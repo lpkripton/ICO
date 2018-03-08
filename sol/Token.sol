@@ -107,7 +107,11 @@ contract Token is ERC20, Ownable {
         _;
     }
 
-    // The Token contract
+    // @notice The Token contract
+    // @param _presaleAddress {address} of presale contract
+    // @param _crowdSaleAddress {address} of public sale
+    // @param _presaleTokens {uint} amount of tokens sold during presale
+    // @param _publicTokens {uint} amount of tokens sold during public sale
     function Token(address _presaleAddress, address _crowdSaleAddress, uint _presaleTokens, uint _publicTokens) public {        
 
         require(_presaleAddress != address(0));
@@ -122,7 +126,7 @@ contract Token is ERC20, Ownable {
         presaleAddress = _presaleAddress;           // Address of presale contraxct
         balances[presaleAddress] = _presaleTokens;  // assign tokens sold during presale to presale contract
         balances[crowdSaleAddress] = _publicTokens.sub(_presaleTokens); // _publicTokens includes also sales from presale
-        adminAddress = 0x6C88e6C76C1Eb3b130612D5686BE9c0A0C78925B;      // admin account for remainder of tokens
+        adminAddress = 0x6C88e6C76C1Eb3b130612D5686BE9c0A0C78925B;      // TODO: admin account for remainder of tokens
         balances[adminAddress] = totalSupply.sub(_presaleTokens).sub(_publicTokens);    // assign remaning tokens to admin address
     }
 
