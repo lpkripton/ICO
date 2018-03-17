@@ -91,43 +91,32 @@ contract Token is ERC20, Ownable {
     mapping(address => uint) balances;
     mapping(address => mapping(address => uint)) allowed;
     address public crowdSaleAddress;
-    address public presaleAddress;
-    address public adminAddress;
+    
 
     // Lock transfer for contributors during the ICO 
     modifier onlyUnlocked() {
-        if (msg.sender != crowdSaleAddress && msg.sender != presaleAddress && locked) 
+        if (msg.sender != crowdSaleAddress && msg.sender != owner && locked) 
             revert();
         _;
     }
 
     modifier onlyAuthorized() {
-        if (msg.sender != owner) 
+         if (msg.sender != owner && msg.sender != crowdSaleAddress) 
             revert();
         _;
     }
 
-    // @notice The Token contract
-    // @param _presaleAddress {address} of presale contract
-    // @param _crowdSaleAddress {address} of public sale
-    // @param _presaleTokens {uint} amount of tokens sold during presale
-    // @param _publicTokens {uint} amount of tokens sold during public sale
-    function Token(address _presaleAddress, address _crowdSaleAddress, uint _presaleTokens, uint _publicTokens) public {        
+    // @notice The Token contract   
+    function Token(address _crowdsaleAddress) public {    
 
-        require(_presaleAddress != address(0));
-        require(_crowdSaleAddress != address(0));       
-
+        require(_crowdsaleAddress != address(0));                  
         locked = true; // Lock the transfer of tokens during the crowdsale       
         totalSupply = 2600000000e8;
         name = "Kripton";                           // Set the name for display purposes
         symbol = "LPK";                             // Set the symbol for display purposes
-        decimals = 8;                               // Amount of decimals for display purposes
-        crowdSaleAddress = _crowdSaleAddress;       // Adress of public sale contract
-        presaleAddress = _presaleAddress;           // Address of presale contraxct
-        balances[presaleAddress] = _presaleTokens;  // assign tokens sold during presale to presale contract
-        balances[crowdSaleAddress] = _publicTokens.sub(_presaleTokens); // _publicTokens includes also sales from presale
-        adminAddress = 0x6C88e6C76C1Eb3b130612D5686BE9c0A0C78925B;      // TODO: admin account for remainder of tokens
-        balances[adminAddress] = totalSupply.sub(_presaleTokens).sub(_publicTokens);    // assign remaning tokens to admin address
+        decimals = 8;                               // Amount of decimals for display purposes         
+        crowdSaleAddress = _crowdsaleAddress;
+        balances[_crowdsaleAddress] = totalSupply;          
     }
 
     // @notice unlock token for trading
