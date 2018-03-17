@@ -19,50 +19,45 @@ contract Token is ERC20, Ownable {
     bool public locked;           
     mapping(address => uint) balances;
     mapping(address => mapping(address => uint)) allowed;
-    address public migrationMaster;
-    address public migrationAgent;
     address public crowdSaleAddress;
-    uint256 public totalMigrated;
+    
 
     // Lock transfer for contributors during the ICO 
     modifier onlyUnlocked() {
-        if (msg.sender != crowdSaleAddress && locked) 
+        if (msg.sender != crowdSaleAddress && msg.sender != owner && locked) 
             revert();
         _;
     }
 
     modifier onlyAuthorized() {
-        if (msg.sender != owner && msg.sender != crowdSaleAddress) 
+        if (msg.sender != owner && msg.sender != crowdSaleAddress)  
             revert();
         _;
     }
 
-    // The SOCX Token created with the time at which the crowdsale ends
-    function Token(address _crowdSaleAddress) public {
-        // Lock the transfCrowdsaleer function during the crowdsale
+    // @notice The Token contract   
+    function Token(address _crowdsaleAddress) public {    
+
+        require(_crowdsaleAddress != address(0));                  
         locked = true; // Lock the transfer of tokens during the crowdsale       
         totalSupply = 2600000000e8;
-        name = "Kripton"; // Set the name for display purposes
-        symbol = "LPK"; // Set the symbol for display purposes
-        decimals = 8; // Amount of decimals for display purposes
-        crowdSaleAddress = _crowdSaleAddress;              
-        balances[crowdSaleAddress] = totalSupply;       
+        name = "Kripton";                           // Set the name for display purposes
+        symbol = "LPK";                             // Set the symbol for display purposes
+        decimals = 8;                               // Amount of decimals for display purposes         
+        crowdSaleAddress = _crowdsaleAddress;
+        balances[_crowdsaleAddress] = totalSupply;          
     }
 
+    // @notice unlock token for trading
     function unlock() public onlyAuthorized {
         locked = false;
     }
 
+    // @lock token from trading during ICO
     function lock() public onlyAuthorized {
         locked = true;
     }
 
-   
-
-    function resetCrowdSaleAddress(address _newCrowdSaleAddress) external onlyAuthorized() {
-        crowdSaleAddress = _newCrowdSaleAddress;
-    }
-    
     // @notice transfer tokens to given address 
     // @param _to {address} address or recipient
     // @param _value {uint} amount to transfer
@@ -131,6 +126,7 @@ contract Token is ERC20, Ownable {
         return true;
     }
 
+    
     function decreaseApproval (address _spender, uint _subtractedValue) public returns (bool success) {
         uint oldValue = allowed[msg.sender][_spender];
         if (_subtractedValue > oldValue) {

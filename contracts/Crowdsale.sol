@@ -20,34 +20,36 @@ contract Crowdsale is Pausable {
     using SafeMath for uint;
 
     struct Backer {
-        uint weiReceived;   // amount of ETH contributed
-        uint tokensToSend;  // amount of tokens  sent
-        bool claimed;       // true if tokens clamied
-        bool refunded;      // true if contribution refunded
+        uint weiReceived; // amount of ETH contributed
+        uint tokensToSend; // amount of tokens  sent      
+        bool refunded;
     }
 
-    Token public token;             // Token contract reference   
-    address public multisig;        // Multisig contract that will receive the ETH        
-    uint public ethReceived;        // Amount of ETH received   
-    uint public totalTokensSent;    // Total number of tokens sent to contributors
-    uint public startBlock;         // Crowdsale start block
-    uint public endBlock;           // Crowdsale end block
-    uint public maxCap;             // Maximum number of tokens to sell   
-    uint public minInvestETH;       // Minimum amount to contribute   
-    bool public crowdsaleClosed;    // Is crowdsale still in progress
-    bool public isRefunding;        // True if refunds needs to be enabled
-    uint public refundCount;        // Number of refunds
-    uint public totalRefunded;      // Total amount of Eth refunded          
+    Token public token; // Token contract reference   
+    address public multisig; // Multisig contract that will receive the ETH    
+    address public team; // Address at which the team tokens will be sent        
+    uint public ethReceivedPresale; // Number of ETH received in presale
+    uint public ethReceivedMain; // Number of ETH received in public sale
+    uint public tokensSentPresale; // Tokens sent during presale
+    uint public tokensSentMain; // Tokens sent during public ICO   
+    uint public totalTokensSent; // Total number of tokens sent to contributors
+    uint public startBlock; // Crowdsale start block
+    uint public endBlock; // Crowdsale end block
+    uint public maxCap; // Maximum number of tokens to sell    
+    uint public minInvestETH; // Minimum amount to invest   
+    bool public crowdsaleClosed; // Is crowdsale still in progress
+    Step public currentStep;  // To allow for controlled steps of the campaign 
+    uint public refundCount;  // Number of refunds
+    uint public totalRefunded; // Total amount of Eth refunded          
     uint public dollarToEtherRatio; // how many dollars are in one eth. Amount uses two decimal values. e.g. $333.44/ETH would be passed as 33344 
-    uint public numOfBlocksInMinute;// number of blocks in one minute * 100. eg. 
+    uint public numOfBlocksInMinute; // number of blocks in one minute * 100. eg. 
+    WhiteList public whiteList;     // whitelist contract
 
-    mapping(address => Backer) public backers;  // contributors list
-    address[] public backersIndex;              // to be able to iterate through backers for verification.  
-    mapping(address => uint) public claimed;    // Tokens claimed by contibutors
-    uint public totalClaimed;                   // Total of tokens claimed
-    uint public claimCount;                     // Number of contributors claming tokens
-    uint public releaseDate;                    // Tokens are unlocked afer this block 
-    WhiteList public whiteList;                 // Whitelist contract address
+    mapping(address => Backer) public backers; // contributors list
+    address[] public backersIndex; // to be able to iterate through backers for verification.              
+    uint public priorTokensSent; 
+    uint public presaleCap;
+   
 
     // @notice to verify if action is not performed out of the campaign range
     modifier respectTimeFrame() {
@@ -55,29 +57,70 @@ contract Crowdsale is Pausable {
         _;
     }
 
+    // @notice to set and determine steps of crowdsale
+    enum Step {      
+        FundingPreSale,     // presale mode
+        FundingPublicSale,  // public mode
+        Refunding  // in case campaign failed during this step contributors will be able to receive refunds
+    }
+
     // Events
     event ReceivedETH(address indexed backer, uint amount, uint tokenAmount);
     event RefundETH(address indexed backer, uint amount);
-    event TokensClaimed(address backer, uint count);
 
     // Crowdsale  {constructor}
     // @notice fired when contract is crated. Initializes all constant and initial values.
-    // @param _whiteList {WhiteList} address of white list
     // @param _dollarToEtherRatio {uint} how many dollars are in one eth.  $333.44/ETH would be passed as 33344
-    // @param _tokensSoldPrior {uint} amount of tokens sold in prior sales
-    function Crowdsale(WhiteList _whiteList, uint _dollarToEtherRatio, uint _tokensSoldPrior) public {    
+    function Crowdsale(WhiteList _whiteList) public {               
+        multisig = 0x10f78f2a70B52e6c3b490113c72Ba9A90ff1b5CA; 
+        team = 0x10f78f2a70B52e6c3b490113c72Ba9A90ff1b5CA; 
+        maxCap = 1510000000e8;             
+        minInvestETH = 1 ether/2;    
+        currentStep = Step.FundingPreSale;
+        dollarToEtherRatio = 56413;       
+        numOfBlocksInMinute = 408;          // E.g. 4.38 block/per minute wold be entered as 438                  
+        priorTokensSent = 4365098999e7;     //tokens distributed in private sale and airdrops
+        whiteList = _whiteList;             // white list address
+        presaleCap = 107000000e8;           // max for sell in presale
 
-        require(_tokensSoldPrior > 0);       
-        require(_dollarToEtherRatio > 0);
-        require(_whiteList != address(0));          
-        multisig = 0x6C88e6C76C1Eb3b130612D5686BE9c0A0C78925B; //TODO: Replace address with correct one      
-        maxCap = 1510000000e8;       
-        minInvestETH = 1 ether;  //TODO: replace with proper value        
-        dollarToEtherRatio = _dollarToEtherRatio;       
-        numOfBlocksInMinute = 438;  //  TODO: updte this value before deploying. E.g. 4.38 block/per minute wold be entered as 438   
-        releaseDate = 1111;         // TODO: update blocks number after which tokens can be released. 
-        totalTokensSent = _tokensSoldPrior; 
-        whiteList = _whiteList;     
+    }
+
+    // @notice to populate website with status of the sale and minimize amout of calls for each variable
+    function returnWebsiteData() external view returns(uint, uint, uint, uint, uint, uint, Step, bool, bool) {            
+    
+        return (startBlock, endBlock, backersIndex.length, ethReceivedPresale + ethReceivedMain, maxCap, totalTokensSent, currentStep, paused, crowdsaleClosed);
+    }
+
+    // @notice Specify address of token contract
+    // @param _tokenAddress {address} address of token contract
+    // @return res {bool}
+    function setTokenAddress(Token _tokenAddress) external onlyOwner() returns(bool res) {
+        require(token == address(0));
+        token = _tokenAddress;
+        return true;
+    }
+
+    // @notice set the step of the campaign from presale to public sale
+    // contract is deployed in presale mode
+    // WARNING: there is no way to go back
+    function advanceStep() public onlyOwner() {
+
+        currentStep = Step.FundingPublicSale;                                             
+        minInvestETH = 1 ether/4;                                     
+    }
+
+    // @notice in case refunds are needed, money can be returned to the contract
+    // and contract switched to mode refunding
+    function prepareRefund() public payable onlyOwner() {
+        
+        require(msg.value == ethReceivedPresale.add(ethReceivedMain)); // make sure that proper amount of ether is sent
+        currentStep = Step.Refunding;
+    }
+
+    // @notice return number of contributors
+    // @return  {uint} number of contributors   
+    function numberOfBackers() public view returns(uint) {
+        return backersIndex.length;
     }
 
     // {fallback function}
@@ -87,25 +130,10 @@ contract Crowdsale is Pausable {
         contribute(msg.sender);
     }
 
-    // @notice to populate website with status of the sale 
-    function returnWebsiteData() external view returns(uint, uint, uint, uint, uint, uint, bool, bool, bool) {            
-    
-        return (startBlock, endBlock, backersIndex.length, ethReceived, maxCap, totalTokensSent, isRefunding, paused, crowdsaleClosed);
-    }   
-
-    // @notice Specify address of token contract
-    // @param _tokenAddress {address} address of token contract
-    // @return res {bool}
-    function updateTokenAddress(Token _tokenAddress) external onlyOwner() returns(bool res) {
-        require(token == address(0));
-        token = _tokenAddress;
-        return true;
-    }
-
     // @notice It will be called by owner to start the sale    
     function start(uint _block) external onlyOwner() {   
 
-        require(_block < (numOfBlocksInMinute * 60 * 24 * 30)/100);  // allow max 30 days for campaign
+        require(_block <= (numOfBlocksInMinute * 60 * 24 * 54)/100);  // allow max 54 days for campaign
         startBlock = block.number;
         endBlock = startBlock.add(_block); 
     }
@@ -114,7 +142,7 @@ contract Crowdsale is Pausable {
     // this function will allow on adjusting duration of campaign closer to the end 
     function adjustDuration(uint _block) external onlyOwner() {
 
-        require(_block < (numOfBlocksInMinute * 60 * 24 * 40)/100); // allow for max of 40 days for campaign
+        require(_block < (numOfBlocksInMinute * 60 * 24 * 60)/100); // allow for max of 60 days for campaign
         require(_block > block.number.sub(startBlock)); // ensure that endBlock is not set in the past
         endBlock = startBlock.add(_block); 
     }   
@@ -126,17 +154,61 @@ contract Crowdsale is Pausable {
         dollarToEtherRatio = _dollarToEtherRatio;
     }
 
-    // @notice allow on manual addition of contributors
-    // @param _backer {address} of contributor to be added
-    // @parm _amountTokens {uint} tokens to be added
-    function addManualContributor(address _backer, uint _amountTokens) external onlyOwner() {
+    // @notice It will be called by fallback function whenever ether is sent to it
+    // @param  _backer {address} address of contributor
+    // @return res {bool} true if transaction was successful
+    function contribute(address _backer) internal whenNotPaused() respectTimeFrame() returns(bool res) {
 
-        Backer storage backer = backers[_backer];        
-        backer.tokensToSend = backer.tokensToSend.add(_amountTokens);
-        if (backer.tokensToSend == 0)      
+        require(whiteList.isWhiteListed(_backer));      // ensure that user is whitelisted
+
+        uint tokensToSend = determinePurchase();
+            
+        Backer storage backer = backers[_backer];
+
+        if (backer.weiReceived == 0)
             backersIndex.push(_backer);
-        totalTokensSent = totalTokensSent.add(_amountTokens);
+       
+        backer.tokensToSend += tokensToSend; // save contributor's total tokens sent
+        backer.weiReceived = backer.weiReceived.add(msg.value);  // save contributor's total ether contributed
+
+        if (Step.FundingPublicSale == currentStep) { // Update the total Ether received and tokens sent during public sale
+            ethReceivedMain = ethReceivedMain.add(msg.value);
+            tokensSentMain += tokensToSend;
+        }else {                                                 // Update the total Ether recived and tokens sent during presale
+            ethReceivedPresale = ethReceivedPresale.add(msg.value); 
+            tokensSentPresale += tokensToSend;
+        }
+                                                     
+        totalTokensSent += tokensToSend;     // update the total amount of tokens sent        
+        multisig.transfer(this.balance);   // transfer funds to multisignature wallet    
+
+        if (!token.transfer(_backer, tokensToSend)) 
+            revert(); // Transfer tokens             
+
+        ReceivedETH(_backer, msg.value, tokensToSend); // Register event
+        return true;
     }
+
+    // @notice determine if purchase is valid and return proper number of tokens
+    // @return tokensToSend {uint} proper number of tokens based on the timline
+    function determinePurchase() internal view  returns (uint) {
+
+        require(msg.value >= minInvestETH);   // ensure that min contributions amount is met  
+        uint tokenAmount = dollarToEtherRatio.mul(msg.value)/4e10;  // price of token is $0.01 and there are 8 decimals for the token
+        
+        uint tokensToSend;
+          
+        if (Step.FundingPublicSale == currentStep) {  // calculate price of token in public sale
+            tokensToSend = tokenAmount;
+            require(totalTokensSent + tokensToSend + priorTokensSent <= maxCap); // Ensure that max cap hasn't been reached  
+        }else {
+            tokensToSend = tokenAmount + (tokenAmount * 50) / 100; 
+            require(totalTokensSent + tokensToSend <= presaleCap); // Ensure that max cap hasn't been reached for presale            
+        }                                                        
+       
+        return tokensToSend;
+    }
+
     
     // @notice This function will finalize the sale.
     // It will only execute if predetermined sale time passed or all tokens are sold.
@@ -146,8 +218,12 @@ contract Crowdsale is Pausable {
         require(!crowdsaleClosed);        
         // purchasing precise number of tokens might be impractical, thus subtract 1000 
         // tokens so finalization is possible near the end 
-        require(block.number >= endBlock || totalTokensSent >= maxCap - 1000);                        
-        crowdsaleClosed = true;                                  
+        require(block.number >= endBlock || totalTokensSent + priorTokensSent >= maxCap - 1000);                        
+        crowdsaleClosed = true; 
+        
+        if (!token.transfer(team, token.balanceOf(this))) // transfer all remaining tokens to team address
+            revert();        
+        token.unlock();                      
     }
 
     // @notice Fail-safe drain
@@ -167,14 +243,14 @@ contract Crowdsale is Pausable {
     // @return {bool} true if successful
     function refund() external whenNotPaused() returns (bool) {
 
-        require(isRefunding);                        
+        require(currentStep == Step.Refunding);                        
 
         Backer storage backer = backers[msg.sender];
 
-        require(backer.weiReceived > 0);    // ensure that user has sent contribution
-        require(!backer.refunded);          // ensure that user hasn't been refunded yet
+        require(backer.weiReceived > 0);  // ensure that user has sent contribution
+        require(!backer.refunded);        // ensure that user hasn't been refunded yet
 
-        backer.refunded = true;             // save refund status to true
+        backer.refunded = true;  // save refund status to true
         refundCount++;
         totalRefunded = totalRefunded + backer.weiReceived;
 
@@ -185,95 +261,7 @@ contract Crowdsale is Pausable {
         return true;
     }
 
-    // @notice contributors can claim tokens after public ICO is finished
-    // tokens are only claimable when token address is available and lock-up period reached. 
-    function claimTokens() external {
-        claimTokensForUser(msg.sender);
-    }
-
-    // @notice this function can be called by admin to claim user's token in case of difficulties
-    // @param _backer {address} user address to claim tokens for
-    function adminClaimTokenForUser(address _backer) external onlyOwner() {
-        claimTokensForUser(_backer);
-    }
-
-    // @notice in case refunds are needed, money can be returned to the contract
-    // and contract switched to mode refunding
-    function prepareRefund() public payable onlyOwner() {
-        
-        require(msg.value == ethReceived); // make sure that proper amount of ether is sent
-        isRefunding = true;
-    }
-
-    // @notice return number of contributors
-    // @return  {uint} number of contributors   
-    function numberOfBackers() public view returns(uint) {
-        return backersIndex.length;
-    }
-
-    // @notice called to send tokens to contributors after ICO.
-    // @param _backer {address} address of beneficiary
-    // @return true if successful
-    function claimTokensForUser(address _backer) internal returns(bool) {       
-
-        require(crowdsaleClosed);
-        require(releaseDate <= block.number);   // ensure that lockup period has passed
-       
-        require(token != address(0));           // address of the token is set after ICO
-                                                // claiming of tokens will be only possible once address of token
-                                                // is set through setToken
-           
-        Backer storage backer = backers[_backer];
-
-        require(!backer.refunded);              // if refunded, don't allow for another refund           
-        require(!backer.claimed);               // if tokens claimed, don't allow refunding            
-        require(backer.tokensToSend != 0);      // only continue if there are any tokens to send           
-
-        claimCount++;
-        claimed[_backer] = backer.tokensToSend; // save claimed tokens
-        backer.claimed = true;
-        totalClaimed += backer.tokensToSend;
-        
-        if (!token.transfer(_backer, backer.tokensToSend)) 
-            revert();                           // send claimed tokens to contributor account
-
-        TokensClaimed(_backer, backer.tokensToSend);  
-    }
-
-    // @notice It will be called by fallback function whenever ether is sent to it
-    // @param  _backer {address} address of contributor
-    // @return res {bool} true if transaction was successful
-    function contribute(address _backer) internal whenNotPaused() respectTimeFrame() returns(bool res) {
-       
-        require(whiteList.isWhiteListed(_backer));  // ensure that user is whitelisted
-
-        uint tokensToSend = determinePurchase();
-            
-        Backer storage backer = backers[_backer];
-
-        if (backer.weiReceived == 0)
-            backersIndex.push(_backer);
-        
-        backer.tokensToSend += tokensToSend;        // save contributor's total tokens sent
-        backer.weiReceived = backer.weiReceived.add(msg.value);  // save contributor's total ether contributed
-                                                     
-        ethReceived = ethReceived.add(msg.value);   // Update the total Ether recived and tokens sent during presale                                                                 
-        totalTokensSent += tokensToSend;            // update the total amount of tokens sent        
-        multisig.transfer(this.balance);            // transfer funds to multisignature wallet          
-
-        ReceivedETH(_backer, msg.value, tokensToSend); // Register event
-        return true;
-    }
-
-    // @notice determine if purchase is valid and return proper number of tokens
-    // @return tokensToSend {uint} proper number of tokens based on the timline
-    function determinePurchase() internal view  returns (uint) {
-       
-        require(msg.value >= minInvestETH);                         // Ensure that min contributions amount is met  
-        uint tokenAmount = dollarToEtherRatio.mul(msg.value)/4e10;  // Price of token is $0.04 and there are 8 decimals for the token                                                                             
-        require(totalTokensSent.add(tokenAmount) < maxCap);         // Ensure that max cap hasn't been reached  
-        return tokenAmount;
-    }
+   
 
 }
 
