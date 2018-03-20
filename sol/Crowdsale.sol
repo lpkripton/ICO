@@ -28,6 +28,7 @@ library SafeMath {
  */
 contract Ownable {
     address public owner;
+    address public newOwner;
     
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
@@ -37,6 +38,7 @@ contract Ownable {
     */
     function Ownable() public {
         owner = msg.sender;
+        newOwner = address(0);
     }
 
     /**
@@ -49,12 +51,18 @@ contract Ownable {
 
     /**
     * @dev Allows the current owner to transfer control of the contract to a newOwner.
-    * @param newOwner The address to transfer ownership to.
+    * @param _newOwner The address to transfer ownership to.
     */
-    function transferOwnership(address newOwner) onlyOwner public {
-        require(newOwner != address(0));
-        OwnershipTransferred(owner, newOwner);
-        owner = newOwner;
+    function transferOwnership(address _newOwner) public onlyOwner {
+        require(address(0) != _newOwner);
+        newOwner = _newOwner;
+    }
+
+    function acceptOwnership() public {
+        require(msg.sender == newOwner);
+        OwnershipTransferred(owner, msg.sender);
+        owner = msg.sender;
+        newOwner = address(0);
     }
 
 }
@@ -130,10 +138,10 @@ contract Crowdsale is Pausable {
     bool public crowdsaleClosed; // Is crowdsale still in progress
     Step public currentStep;  // To allow for controlled steps of the campaign 
     uint public refundCount;  // Number of refunds
-    uint public totalRefunded; // Total amount of Eth refunded          
-    uint public dollarToEtherRatio; // how many dollars are in one eth. Amount uses two decimal values. e.g. $333.44/ETH would be passed as 33344 
+    uint public totalRefunded; // Total amount of Eth refunded             
     uint public numOfBlocksInMinute; // number of blocks in one minute * 100. eg. 
     WhiteList public whiteList;     // whitelist contract
+    uint public tokenPriceWei;      // Price of token in wei
 
     mapping(address => Backer) public backers; // contributors list
     address[] public backersIndex; // to be able to iterate through backers for verification.              
@@ -161,25 +169,20 @@ contract Crowdsale is Pausable {
     // Crowdsale  {constructor}
     // @notice fired when contract is crated. Initializes all constant and initial values.
     // @param _dollarToEtherRatio {uint} how many dollars are in one eth.  $333.44/ETH would be passed as 33344
-    function Crowdsale(WhiteList _whiteList) public {               
+    function Crowdsale(WhiteList _whiteList) public {      
+
+        require(_whiteList != address(0));        
         multisig = 0x10f78f2a70B52e6c3b490113c72Ba9A90ff1b5CA; 
         team = 0x10f78f2a70B52e6c3b490113c72Ba9A90ff1b5CA; 
         maxCap = 1510000000e8;             
         minInvestETH = 1 ether/2;    
-        currentStep = Step.FundingPreSale;
-        dollarToEtherRatio = 56413;       
-        numOfBlocksInMinute = 408;          // E.g. 4.38 block/per minute wold be entered as 438                  
+        currentStep = Step.FundingPreSale;             
+        numOfBlocksInMinute = 408;          // E.g. 4.38 block/per minute wold       be entered as 438                  
         priorTokensSent = 4365098999e7;     //tokens distributed in private sale and airdrops
         whiteList = _whiteList;             // white list address
         presaleCap = 107000000e8;           // max for sell in presale
-
-    }
-
-    // @notice to populate website with status of the sale and minimize amout of calls for each variable
-    function returnWebsiteData() external view returns(uint, uint, uint, uint, uint, uint, Step, bool, bool) {            
-    
-        return (startBlock, endBlock, backersIndex.length, ethReceivedPresale + ethReceivedMain, maxCap, totalTokensSent, currentStep, paused, crowdsaleClosed);
-    }
+        tokenPriceWei = 57142857142857;     // 17500 tokens per ether                                                                              
+    }    
 
     // @notice Specify address of token contract
     // @param _tokenAddress {address} address of token contract
@@ -203,6 +206,7 @@ contract Crowdsale is Pausable {
     // and contract switched to mode refunding
     function prepareRefund() public payable onlyOwner() {
         
+        require(!crowdsaleClosed);
         require(msg.value == ethReceivedPresale.add(ethReceivedMain)); // make sure that proper amount of ether is sent
         currentStep = Step.Refunding;
     }
@@ -223,6 +227,7 @@ contract Crowdsale is Pausable {
     // @notice It will be called by owner to start the sale    
     function start(uint _block) external onlyOwner() {   
 
+        require(startBlock == 0);
         require(_block <= (numOfBlocksInMinute * 60 * 24 * 54)/100);  // allow max 54 days for campaign
         startBlock = block.number;
         endBlock = startBlock.add(_block); 
@@ -232,17 +237,11 @@ contract Crowdsale is Pausable {
     // this function will allow on adjusting duration of campaign closer to the end 
     function adjustDuration(uint _block) external onlyOwner() {
 
+        require(startBlock > 0);
         require(_block < (numOfBlocksInMinute * 60 * 24 * 60)/100); // allow for max of 60 days for campaign
         require(_block > block.number.sub(startBlock)); // ensure that endBlock is not set in the past
         endBlock = startBlock.add(_block); 
     }   
-
-    // @notice due to Ether to Dollar flacutation this value will be adjusted during the campaign
-    // @param _dollarToEtherRatio {uint} new value of dollar to ether ratio
-    function adjustDollarToEtherRatio(uint _dollarToEtherRatio) external onlyOwner() {
-        require(_dollarToEtherRatio > 0);
-        dollarToEtherRatio = _dollarToEtherRatio;
-    }
 
     // @notice It will be called by fallback function whenever ether is sent to it
     // @param  _backer {address} address of contributor
@@ -272,8 +271,7 @@ contract Crowdsale is Pausable {
         totalTokensSent += tokensToSend;     // update the total amount of tokens sent        
         multisig.transfer(this.balance);   // transfer funds to multisignature wallet    
 
-        if (!token.transfer(_backer, tokensToSend)) 
-            revert(); // Transfer tokens             
+        require(token.transfer(_backer, tokensToSend));   // Transfer tokens                     
 
         ReceivedETH(_backer, msg.value, tokensToSend); // Register event
         return true;
@@ -283,19 +281,16 @@ contract Crowdsale is Pausable {
     // @return tokensToSend {uint} proper number of tokens based on the timline
     function determinePurchase() internal view  returns (uint) {
 
-        require(msg.value >= minInvestETH);   // ensure that min contributions amount is met  
-        uint tokenAmount = dollarToEtherRatio.mul(msg.value)/4e10;  // price of token is $0.01 and there are 8 decimals for the token
-        
-        uint tokensToSend;
+        require(msg.value >= minInvestETH);   // ensure that min contributions amount is met         
+
+        uint tokensToSend = msg.value.mul(1e8) / tokenPriceWei;   //1e8 ensures that token gets 8 decimal values       
           
-        if (Step.FundingPublicSale == currentStep) {  // calculate price of token in public sale
-            tokensToSend = tokenAmount;
+        if (Step.FundingPublicSale == currentStep) {  // calculate price of token in public sale            
             require(totalTokensSent + tokensToSend + priorTokensSent <= maxCap); // Ensure that max cap hasn't been reached  
         }else {
-            tokensToSend = tokenAmount + (tokenAmount * 50) / 100; 
+            tokensToSend += (tokensToSend * 50) / 100; 
             require(totalTokensSent + tokensToSend <= presaleCap); // Ensure that max cap hasn't been reached for presale            
-        }                                                        
-       
+        }                                                               
         return tokensToSend;
     }
 
@@ -311,8 +306,7 @@ contract Crowdsale is Pausable {
         require(block.number >= endBlock || totalTokensSent + priorTokensSent >= maxCap - 1000);                        
         crowdsaleClosed = true; 
         
-        if (!token.transfer(team, token.balanceOf(this))) // transfer all remaining tokens to team address
-            revert();        
+        require(token.transfer(team, token.balanceOf(this))); // transfer all remaining tokens to team address                   
         token.unlock();                      
     }
 
@@ -324,8 +318,7 @@ contract Crowdsale is Pausable {
     // @notice Fail-safe token transfer
     function tokenDrain() external onlyOwner() {
         if (block.number > endBlock) {
-            if (!token.transfer(multisig, token.balanceOf(this))) 
-                revert();
+            require(token.transfer(multisig, token.balanceOf(this)));               
         }
     }
     
@@ -344,8 +337,7 @@ contract Crowdsale is Pausable {
         refundCount++;
         totalRefunded = totalRefunded + backer.weiReceived;
 
-        if (!token.transfer(msg.sender, backer.tokensToSend)) // return allocated tokens
-            revert();                            
+        require(token.transfer(msg.sender, backer.tokensToSend)); // return allocated tokens                                     
         msg.sender.transfer(backer.weiReceived);  // send back the contribution 
         RefundETH(msg.sender, backer.weiReceived);
         return true;
@@ -412,7 +404,7 @@ contract Token is ERC20, Ownable {
         totalSupply = 2600000000e8;
         name = "Kripton";                           // Set the name for display purposes
         symbol = "LPK";                             // Set the symbol for display purposes
-        decimals = 8;                               // Amount of decimals for display purposes         
+        decimals = 8;                               // Amount of decimals            
         crowdSaleAddress = _crowdsaleAddress;
         balances[_crowdsaleAddress] = totalSupply;          
     }
@@ -530,41 +522,40 @@ contract WhiteList is Ownable {
 
     // @notice it will remove whitelisted user
     // @param _contributor {address} of user to unwhitelist
-    function removeFromWhiteList(address _user) external onlyOwner() returns (bool) {
+    function removeFromWhiteList(address _user) external onlyOwner() {
        
         require(whiteList[_user] == true);
         whiteList[_user] = false;
         totalWhiteListed--;
-        LogRemoveWhiteListed(_user);
-        return true;
+        LogRemoveWhiteListed(_user);        
     }
 
     // @notice it will white list one member
     // @param _user {address} of user to whitelist
     // @return true if successful
-    function addToWhiteList(address _user) external onlyOwner() returns (bool) {
+    function addToWhiteList(address _user) external onlyOwner() {
 
         if (whiteList[_user] != true) {
             whiteList[_user] = true;
             totalWhiteListed++;
             LogWhiteListed(_user, totalWhiteListed);            
-        }
-        return true;
+        }else 
+
+            revert();
     }
 
     // @notice it will white list multiple members
     // @param _user {address[]} of users to whitelist
     // @return true if successful
-    function addToWhiteListMultiple(address[] _users) external onlyOwner() returns (bool) {
+    function addToWhiteListMultiple(address[] _users) external onlyOwner() {
 
         for (uint i = 0; i < _users.length; ++i) {
 
             if (whiteList[_users[i]] != true) {
                 whiteList[_users[i]] = true;
-                totalWhiteListed++;                          
+                totalWhiteListed++;                                           
             }           
         }
-        LogWhiteListedMultiple(totalWhiteListed); 
-        return true;
+        LogWhiteListedMultiple(totalWhiteListed);         
     }
 }
