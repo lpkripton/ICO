@@ -1,45 +1,3 @@
-pragma solidity ^ 0.4.18;
-
-
-/**
- * @title Ownable
- * @dev The Ownable contract has an owner address, and provides basic authorization control
- * functions, this simplifies the implementation of "user permissions".
- */
-contract Ownable {
-    address public owner;
-    
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-    /**
-    * @dev The Ownable constructor sets the original `owner` of the contract to the sender
-    * account.
-    */
-    function Ownable() public {
-        owner = msg.sender;
-    }
-
-    /**
-    * @dev Throws if called by any account other than the owner.
-    */
-    modifier onlyOwner() {
-        require(msg.sender == owner);
-        _;
-    }
-
-    /**
-    * @dev Allows the current owner to transfer control of the contract to a newOwner.
-    * @param newOwner The address to transfer ownership to.
-    */
-    function transferOwnership(address newOwner) onlyOwner public {
-        require(newOwner != address(0));
-        OwnershipTransferred(owner, newOwner);
-        owner = newOwner;
-    }
-
-}
-
-
 // Whitelist smart contract
 // This smart contract keeps list of addresses to whitelist
 contract WhiteList is Ownable {
@@ -61,41 +19,40 @@ contract WhiteList is Ownable {
 
     // @notice it will remove whitelisted user
     // @param _contributor {address} of user to unwhitelist
-    function removeFromWhiteList(address _user) external onlyOwner() returns (bool) {
+    function removeFromWhiteList(address _user) external onlyOwner() {
        
         require(whiteList[_user] == true);
         whiteList[_user] = false;
         totalWhiteListed--;
-        LogRemoveWhiteListed(_user);
-        return true;
+        LogRemoveWhiteListed(_user);        
     }
 
     // @notice it will white list one member
     // @param _user {address} of user to whitelist
     // @return true if successful
-    function addToWhiteList(address _user) external onlyOwner() returns (bool) {
+    function addToWhiteList(address _user) external onlyOwner() {
 
         if (whiteList[_user] != true) {
             whiteList[_user] = true;
             totalWhiteListed++;
             LogWhiteListed(_user, totalWhiteListed);            
-        }
-        return true;
+        }else 
+
+            revert();
     }
 
     // @notice it will white list multiple members
     // @param _user {address[]} of users to whitelist
     // @return true if successful
-    function addToWhiteListMultiple(address[] _users) external onlyOwner() returns (bool) {
+    function addToWhiteListMultiple(address[] _users) external onlyOwner() {
 
         for (uint i = 0; i < _users.length; ++i) {
 
             if (whiteList[_users[i]] != true) {
                 whiteList[_users[i]] = true;
-                totalWhiteListed++;                          
+                totalWhiteListed++;                                           
             }           
         }
-        LogWhiteListedMultiple(totalWhiteListed); 
-        return true;
+        LogWhiteListedMultiple(totalWhiteListed);         
     }
 }

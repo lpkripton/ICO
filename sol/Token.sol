@@ -114,7 +114,7 @@ contract Token is ERC20, Ownable {
         totalSupply = 2600000000e8;
         name = "Kripton";                           // Set the name for display purposes
         symbol = "LPK";                             // Set the symbol for display purposes
-        decimals = 8;                               // Amount of decimals for display purposes         
+        decimals = 8;                               // Amount of decimals            
         crowdSaleAddress = _crowdsaleAddress;
         balances[_crowdsaleAddress] = totalSupply;          
     }
