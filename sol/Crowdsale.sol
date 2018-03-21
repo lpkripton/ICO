@@ -177,10 +177,10 @@ contract Crowdsale is Pausable {
         maxCap = 1510000000e8;             
         minInvestETH = 1 ether/2;    
         currentStep = Step.FundingPreSale;             
-        numOfBlocksInMinute = 408;          // E.g. 4.38 block/per minute wold       be entered as 438                  
+        numOfBlocksInMinute = 408;          // E.g. 4.38 block/per minute wold be entered as 438                  
         priorTokensSent = 4365098999e7;     //tokens distributed in private sale and airdrops
         whiteList = _whiteList;             // white list address
-        presaleCap = 107000000e8;           // max for sell in presale
+        presaleCap = 107000000e8;           // max for sell in presale  
         tokenPriceWei = 57142857142857;     // 17500 tokens per ether                                                                              
     }    
 
@@ -206,7 +206,7 @@ contract Crowdsale is Pausable {
     // and contract switched to mode refunding
     function prepareRefund() public payable onlyOwner() {
         
-        require(!crowdsaleClosed);
+        require(crowdsaleClosed);
         require(msg.value == ethReceivedPresale.add(ethReceivedMain)); // make sure that proper amount of ether is sent
         currentStep = Step.Refunding;
     }
