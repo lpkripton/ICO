@@ -174,13 +174,13 @@ contract Crowdsale is Pausable {
         require(_whiteList != address(0));
         multisig = 0x10f78f2a70B52e6c3b490113c72Ba9A90ff1b5CA;
         team = 0x10f78f2a70B52e6c3b490113c72Ba9A90ff1b5CA;
-        maxCap = 1510000000e8;
+        maxCap = 1350000000e8;
         minInvestETH = 1 ether/2;
         currentStep = Step.FundingPreSale;
         numOfBlocksInMinute = 408;          // E.g. 4.38 block/per minute wold be entered as 438
         priorTokensSent = 4365098999e7;     //tokens distributed in private sale and airdrops
         whiteList = _whiteList;             // white list address
-        presaleCap = 107000000e8;           // max for sell in presale
+        presaleCap = 160000000e8;           // max for sell in presale
         tokenPriceWei = 57142857142857;     // 17500 tokens per ether
     }
 
