@@ -197,7 +197,7 @@ contract Crowdsale is Pausable {
     // contract is deployed in presale mode
     // WARNING: there is no way to go back
     function advanceStep() public onlyOwner() {
-
+        require(Step.FundingPreSale == currentStep);
         currentStep = Step.FundingPublicSale;
         minInvestETH = 1 ether/4;
     }
@@ -247,7 +247,7 @@ contract Crowdsale is Pausable {
     // @param  _backer {address} address of contributor
     // @return res {bool} true if transaction was successful
     function contribute(address _backer) internal whenNotPaused() respectTimeFrame() returns(bool res) {
-
+        require(!crowdsaleClosed);
         require(whiteList.isWhiteListed(_backer));      // ensure that user is whitelisted
 
         uint tokensToSend = determinePurchase();
