@@ -174,7 +174,7 @@ contract Crowdsale is Pausable {
         require(_whiteList != address(0));
         multisig = 0x10f78f2a70B52e6c3b490113c72Ba9A90ff1b5CA;
         team = 0x10f78f2a70B52e6c3b490113c72Ba9A90ff1b5CA;
-        maxCap = 1350000000e8;
+        maxCap = 1510000000e8;
         minInvestETH = 1 ether/2;
         currentStep = Step.FundingPreSale;
         numOfBlocksInMinute = 408;          // E.g. 4.38 block/per minute wold be entered as 438
